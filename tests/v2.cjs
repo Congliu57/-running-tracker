@@ -1,7 +1,7 @@
 const {chromium}=require('playwright');
 const assert=require('node:assert/strict');
 const fs=require('node:fs/promises');
-const URL='http://127.0.0.1:8001/-running-tracker/';
+const URL=(process.env.TEST_URL || 'http://127.0.0.1:8001/-running-tracker/');
 (async()=>{
  const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',args:['--no-sandbox']});
  const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,timezoneId:'Asia/Hong_Kong',acceptDownloads:true});
@@ -21,6 +21,9 @@ const URL='http://127.0.0.1:8001/-running-tracker/';
  await page.locator('.race-card').filter({hasText:'新版比赛'}).getByRole('button',{name:'编辑比赛 新版比赛',exact:true}).click();await page.fill('#race-name','不保存');await page.click('#race-cancel');assert.doesNotMatch(await page.locator('#race-list').innerText(),/不保存/);
  page.once('dialog',d=>d.dismiss());await page.locator('.race-card').filter({hasText:'新版比赛'}).locator('.delete').click();assert.equal(await page.locator('.race-card').count(),3);
  page.once('dialog',d=>d.accept());await page.locator('.race-card').filter({hasText:'新版比赛'}).locator('.delete').click();assert.equal(await page.locator('.race-card').count(),2);
+ assert.equal(await page.locator('#reference-time').getAttribute('inputmode'),'text');
+ await page.fill('#reference-time','01:45:30');await page.locator('#prediction-form button').click();assert.equal(await page.evaluate(()=>reference.duration),6330);
+ for (const bad of ['01:60:00','01:00:60','01:5:30','00:00:00','abc']) {await page.fill('#reference-time',bad);assert.equal(await page.locator('#reference-time').evaluate(el=>el.checkValidity()),false);assert.equal(await page.evaluate(()=>reference.duration),6330);}
  await page.fill('#reference-time','00:25:00');await page.fill('#prediction-distance','10');await page.locator('#prediction-form button').click();
  const expected=Math.round(1500*Math.pow(2,1.06));assert.equal(await page.evaluate(()=>Math.round(predictionFor(10))),expected);assert.match(await page.locator('#prediction-result').innerText(),/00:52:07/);assert.match(await page.locator('#next-race').innerText(),/自己设定的目标成绩：04:00:00/);assert.match(await page.locator('#next-race').innerText(),/公式预测参考/);
  for(const d of ['5','10','21.0975','42.195']){await page.selectOption('#reference-distance',d);await page.locator('#prediction-form button').click();assert.equal(await page.evaluate(()=>reference.distance),Number(d));}
