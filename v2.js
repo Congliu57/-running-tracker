@@ -151,7 +151,7 @@ $('calculator-form').addEventListener('input', () => { if ($('calculator-result'
 $('export-data').onclick = () => {
   try {
     // Read raw persisted strings so even unreadable JSON can be backed up without loss.
-    const rawStorage = Object.fromEntries([STORAGE_KEY, RACES_KEY, REFERENCE_KEY].map(key => [key, localStorage.getItem(key)]));
+    const rawStorage = Object.fromEntries([STORAGE_KEY, RACES_KEY, REFERENCE_KEY, 'running-tracker.pace-plans.v1'].map(key => [key, localStorage.getItem(key)]));
     const backup = { version: '2.0', exportedAt: new Date().toISOString(), records: storageProblem ? null : records, races: racesReadable ? races : null, reference: referenceReadable ? reference : null, rawStorage };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob), link = document.createElement('a'); link.href = url; link.download = `running-tracker-${today()}.json`; document.body.append(link); link.click(); link.remove();
