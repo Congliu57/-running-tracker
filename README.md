@@ -128,3 +128,9 @@ TEST_URL=http://127.0.0.1:8005/-running-tracker/ node tests/courses.cjs
 ```
 
 同时运行 tests/v1-regression.cjs、tests/v2.cjs、tests/pace-table.cjs、tests/race-mode.cjs。API 成功使用模拟响应测试，失败与离线索引有模拟覆盖；不代表真实公共 API 或真实 iPhone 已验证。发布仍通过独立 PR 合并到 main，由 GitHub Pages 自动部署；保留原 Safari 网站数据。
+
+### iPhone GPX 文件灰色不可选修复
+
+赛道上传框不再设置 accept，避免 iOS 文件选择器对 GPX/KML/TCX 的 MIME/类型映射不一致而禁用文件。选择器可显示其他类型，但 JavaScript 在读取文件前严格校验 .gpx/.kml/.tcx 扩展名（大小写兼容）、非空和最大 10 MB；不依赖 file.type。原 XML、DTD、坐标、高程、轨迹与距离校验保留，失败不覆盖缓存。
+
+iPhone 更新网站后，点击上传，在“浏览 → iCloud Drive → Downloads”选择 GPX。若文件仍不可用，请确认 iCloud 下载已完成；当前没有真实设备或你的原文件可用于验收。浏览器测试覆盖 60 KB 合成 GPX、通用/空 MIME、KML/TCX、错误扩展名、空文件、超限文件以及旧数据保持。
