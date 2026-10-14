@@ -58,8 +58,9 @@ function readV2() {
   } catch { referenceReadable = false; $('prediction-error').textContent = '无法读取参考成绩，已阻止覆盖。请先导出备份。'; }
 }
 function saveRaces(next) {
+  if (typeof raceModeLocks === 'function' && races.some(r => raceModeLocks(r.id) && !next.some(n => n.id === r.id))) { $('race-error').textContent = '请先结束比赛模式，再删除该比赛。'; return false; }
   if (!racesReadable) return false;
-  try { localStorage.setItem(RACES_KEY, JSON.stringify(next)); races = next; $('race-error').textContent = ''; return true; }
+  try { localStorage.setItem(RACES_KEY, JSON.stringify(next)); races = next; $('race-error').textContent = ''; document.dispatchEvent(new Event('races-updated')); return true; }
   catch { $('race-error').textContent = '比赛保存失败：存储不可用或空间不足，原数据未更改。'; return false; }
 }
 function raceDetails(r, container) {
@@ -151,8 +152,8 @@ $('calculator-form').addEventListener('input', () => { if ($('calculator-result'
 $('export-data').onclick = () => {
   try {
     // Read raw persisted strings so even unreadable JSON can be backed up without loss.
-    const rawStorage = Object.fromEntries([STORAGE_KEY, RACES_KEY, REFERENCE_KEY, 'running-tracker.pace-plans.v1'].map(key => [key, localStorage.getItem(key)]));
-    const backup = { version: '2.0', exportedAt: new Date().toISOString(), records: storageProblem ? null : records, races: racesReadable ? races : null, reference: referenceReadable ? reference : null, rawStorage };
+    const rawStorage = Object.fromEntries([STORAGE_KEY, RACES_KEY, REFERENCE_KEY, 'running-tracker.pace-plans.v1', 'running-tracker.race-mode.v1'].map(key => [key, localStorage.getItem(key)]));
+    const backup = { version: '2.2', exportedAt: new Date().toISOString(), records: storageProblem ? null : records, races: racesReadable ? races : null, reference: referenceReadable ? reference : null, rawStorage };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob), link = document.createElement('a'); link.href = url; link.download = `running-tracker-${today()}.json`; document.body.append(link); link.click(); link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 60000);
