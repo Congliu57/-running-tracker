@@ -111,8 +111,21 @@ function renderPrediction() {
   const predicted = predictionFor(d);
   result.append(textElement('div', `公式预测 ${d} km：${clockTime(predicted)} · ${pace(d, predicted)} /km。参考成绩：${reference.distance} km / ${clockTime(reference.duration)}。这不是你设定的目标成绩。`, 'result-box'));
 }
+function validateReferenceInput() {
+  const input = $('reference-time');
+  const value = input.value.trim();
+  const valid = /^\d{2,3}:[0-5]\d:[0-5]\d$/.test(value) && validTime(timeSeconds(value));
+  const message = value && !valid ? '请输入 HH:MM:SS 格式，例如 01:45:30；分钟和秒须为 00–59，成绩须大于 0。' : '';
+  input.setCustomValidity(message);
+  input.setAttribute('aria-invalid', message ? 'true' : 'false');
+  if (referenceReadable) $('prediction-error').textContent = message;
+  return valid;
+}
+$('reference-time').addEventListener('input', validateReferenceInput);
+$('reference-time').addEventListener('blur', validateReferenceInput);
 $('prediction-form').addEventListener('submit', event => {
   event.preventDefault();
+  if (!validateReferenceInput()) return;
   const next = { distance: Number($('reference-distance').value), duration: timeSeconds($('reference-time').value) };
   if (!validReference(next) || !validDistance(Number($('prediction-distance').value))) { $('prediction-error').textContent = '请填写有效距离和大于 0 的成绩，格式为 时:分:秒。'; return; }
   if (!referenceReadable) return;

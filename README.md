@@ -70,3 +70,9 @@ node tests/v2.cjs
 ```
 
 Playwright 需能被 Node.js 查找到（安装在仓库外亦可，通过 NODE_PATH 指定）。Chromium 默认 `/usr/bin/chromium`；V2 测试可通过 CHROMIUM_PATH 指定。测试使用独立临时浏览器上下文，不接触你的 Safari 数据。真实 iPhone Safari 仍需在发布后实机验收。
+
+### 成绩输入修复
+
+成绩输入采用文本键盘，iPhone Safari 可输入冒号。参考成绩使用 HH:MM:SS，例如 01:45:30；分钟、秒必须在 00–59 内，时间必须大于零。为兼容超长成绩，也接受三位小时。输入时即时校验，计算前转换为秒；预测公式与旧跑步数据不变。
+
+测试可使用 TEST_URL 指定服务地址，例如 `TEST_URL=http://127.0.0.1:8002/-running-tracker/ node tests/v2.cjs`。
