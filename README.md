@@ -37,3 +37,36 @@ python3 -m http.server 8000
 ## 验证
 
 使用 Chromium 的手机视口检查新增、自动配速、统计、编辑、取消编辑、删除确认、刷新后的数据保存、趋势切换、非法输入与布局。真实 iPhone Safari 仍建议在部署后进行设备验收。
+
+## V2.0 新增功能与数据兼容
+
+- 比赛管理：多场比赛、编辑/删除、最近一场倒计时和历史筛选。比赛日期为设备本地日期，今天显示“今天比赛”，次日转为“已结束”；不判断当天比赛的具体结束时间。
+- 成绩预测：保存一项 5K、10K、半马或全马参考成绩，通过 Riegel 指数 1.06 预测任意目标距离。公式预测与自己设定的比赛目标分开显示，仅供参考。
+- 配速计划：按匀速显示 5K、10K、半马和终点累计用时；超出目标距离的分段隐藏，分段等于终点时只显示终点。
+- JSON 备份：点击“导出 JSON 数据”，保存训练、比赛、参考成绩及原始存储字符串。当前不支持导入，请保管备份。
+
+原训练键 `running-tracker.records.v1` 和记录结构完全保留，无需迁移。比赛存储键是 `running-tracker.races.v2`，参考成绩键是 `running-tracker.reference.v2`。新功能不会写入训练存储；只有原训练的新增、编辑、删除操作会更新训练记录。浏览器存储读取损坏时阻止覆盖，写入失败时保留当前数据。
+
+## iPhone 审查、合并和发布 V2
+
+1. 用 Safari 登录 GitHub，打开 V2 Pull Request。在 Files changed 查看修改，Conversation 查看测试报告。此时 main 和已发布网站仍保持原版本。
+2. GitHub 不会自动为功能分支生成在线预览；合并前可审查代码和测试报告。建议先在原网站导出已有训练备份。不要清除 Safari 网站数据。
+3. 确认后在 PR 底部点击 Merge pull request（或 Squash and merge），再点击 Confirm merge。如果看不到按钮，先检查是否登录仓库所有者账号，并可在 Safari 地址栏菜单选择“请求桌面网站”。
+4. 仓库 Settings → Pages 设置为 Deploy from a branch、main、/ (root)。若之前已这样设置，合并后会自动部署，不必重新设置。
+5. 打开 Actions 查看 pages build and deployment 是否成功。成功后刷新原网址 `https://congliu57.github.io/-running-tracker/`，看到 V2.0 标识即已更新。
+6. 在同一个 Safari 网站地址确认原记录仍在；添加比赛、输入参考成绩、计算配速并下载 JSON 备份。iPhone Safari 的日期输入显示格式由系统语言决定。
+
+若自动创建 PR 不可用，打开 GitHub 的分支比较页面，确认 base 为 main、compare 为 feature/running-tracker-v2，点击 Create pull request，再进入上述审查步骤。无需在 iPhone 手动复制代码。
+
+## 可重复的浏览器测试
+
+测试工具仅用于开发，不是网页依赖。准备 Node.js、Playwright 和 Chromium 后，在 `/workspace` 启动 `python3 -m http.server 8001`；测试默认访问 `http://127.0.0.1:8001/-running-tracker/`，用于验证 GitHub Pages 子目录路径。
+
+```sh
+node --check app.js
+node --check v2.js
+node tests/v1-regression.cjs
+node tests/v2.cjs
+```
+
+Playwright 需能被 Node.js 查找到（安装在仓库外亦可，通过 NODE_PATH 指定）。Chromium 默认 `/usr/bin/chromium`；V2 测试可通过 CHROMIUM_PATH 指定。测试使用独立临时浏览器上下文，不接触你的 Safari 数据。真实 iPhone Safari 仍需在发布后实机验收。
