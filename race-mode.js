@@ -2,7 +2,7 @@
 const RM_KEY = 'running-tracker.race-mode.v1';
 let raceSession = null, rmReadable = true, rmTick = null;
 function validSession(s) {
-  return s && validRace(s.race) && STANDARD_DISTANCES.includes(s.race.distance) && validTime(s.race.goal) && ['running','paused','ended'].includes(s.status) && ['even','negative'].includes(s.strategy) && Number.isFinite(s.amplitude) && s.amplitude >= 0 && s.amplitude <= 20 && Number.isFinite(s.progress) && s.progress >= 0 && s.progress <= s.race.distance && Number.isFinite(s.elapsedMs) && s.elapsedMs >= 0 && (s.status === 'running' ? Number.isFinite(s.startedAt) && s.startedAt > 0 : s.startedAt === null) && Array.isArray(s.supplies) && s.supplies.every(x => x && typeof x.id === 'string' && ['饮水','能量胶','其他'].includes(x.type) && typeof x.note === 'string' && x.note.length <= 80 && Number.isFinite(x.distance) && x.distance > 0 && x.distance <= s.race.distance) && new Set(s.supplies.map(x=>x.id)).size === s.supplies.length;
+  return s && validRace(s.race) && STANDARD_DISTANCES.includes(s.race.distance) && validTime(s.race.goal) && ['running','paused','ended'].includes(s.status) && ['even','negative','grade'].includes(s.strategy) && (s.strategy !== 'grade' || validCourseSnapshot(s)) && (s.actualSeconds === undefined || Number.isInteger(s.actualSeconds) && s.actualSeconds >= 0 && s.actualSeconds <= 3599999) && Number.isFinite(s.amplitude) && s.amplitude >= 0 && s.amplitude <= 20 && Number.isFinite(s.progress) && s.progress >= 0 && s.progress <= s.race.distance && Number.isFinite(s.elapsedMs) && s.elapsedMs >= 0 && (s.status === 'running' ? Number.isFinite(s.startedAt) && s.startedAt > 0 : s.startedAt === null) && Array.isArray(s.supplies) && s.supplies.every(x => x && typeof x.id === 'string' && ['饮水','能量胶','其他'].includes(x.type) && typeof x.note === 'string' && x.note.length <= 80 && Number.isFinite(x.distance) && x.distance > 0 && x.distance <= s.race.distance) && new Set(s.supplies.map(x=>x.id)).size === s.supplies.length;
 }
 try { const raw = localStorage.getItem(RM_KEY); if (raw !== null) { const s = JSON.parse(raw); if (!validSession(s)) throw Error('Invalid session'); raceSession = s; } }
 catch { rmReadable = false; $('rm-error').textContent = '比赛模式数据无法读取，已阻止覆盖。请先导出备份；其他数据不受影响。'; }
@@ -14,7 +14,13 @@ function saveSession(next) {
 }
 function raceModeLocks(id) { return raceSession && raceSession.status !== 'ended' && raceSession.race.id === id; }
 function rmElapsed(s = raceSession) { return s ? s.elapsedMs + (s.status === 'running' ? Math.max(0, Date.now() - s.startedAt) : 0) : 0; }
+function validCourseSnapshot(s) {
+  const p=s.coursePlan,c=s.courseContext;
+  return p && c && Array.isArray(c.segments) && c.segments.every(x=>Number.isFinite(x.start)&&Number.isFinite(x.end)&&Number.isFinite(x.grade)) && Array.isArray(p) && p.length>0 && p.length<2000 && p.every((x,i)=>Number.isFinite(x.start)&&Number.isFinite(x.end)&&Number.isFinite(x.seconds)&&Number.isFinite(x.duration)&&x.end>x.start&&x.duration>0&&Math.abs(x.start-(i?p[i-1].end:0))<1e-6&&Math.abs(x.seconds-(i?p[i-1].seconds+p[i-1].duration:0))<1e-6) && Math.abs(p.at(-1).end-s.race.distance)<1e-6 && Math.abs(p.at(-1).seconds+p.at(-1).duration-s.race.goal)<1e-6;
+}
 function rmTargetTime(km, s = raceSession) {
+  if(s.strategy==='grade') { if(km>=s.race.distance)return s.race.goal;if(km<=0)return 0;const part=s.coursePlan.find(x=>km<=x.end);return part.seconds+part.duration*(km-part.start)/(part.end-part.start); }
+
   const {distance, goal} = s.race, a = s.strategy === 'negative' ? s.amplitude / 100 : 0;
   const half = distance / 2, base = goal / distance;
   return km >= distance ? goal : Math.min(km, half) * base * (1 + a) + Math.max(0, km - half) * base * (1 - a);
@@ -44,7 +50,7 @@ function renderRaceMode() {
   if (!s) { display.append(textElement('p','选择比赛后开始。所有进度均由你手动输入。','muted')); return; }
   display.append(textElement('h3',s.race.name),textElement('p',`${s.race.date} · ${s.race.distance} km · ${s.status==='running'?'进行中':s.status==='paused'?'已暂停':'已结束'}`));
   display.append(textElement('p',`目标 ${clockTime(s.race.goal)} · 平均 ${pace(s.race.distance,s.race.goal)} /km`));
-  display.append(textElement('p',s.strategy==='even'?'匀速策略':`负分段 ${s.amplitude}% · 前半 ${pace(s.race.distance,s.race.goal*(1+s.amplitude/100))} /km · 后半 ${pace(s.race.distance,s.race.goal*(1-s.amplitude/100))} /km`));
+  display.append(textElement('p',s.strategy==='grade'?'坡度调整 · 估算建议':s.strategy==='even'?'匀速策略':`负分段 ${s.amplitude}% · 前半 ${pace(s.race.distance,s.race.goal*(1+s.amplitude/100))} /km · 后半 ${pace(s.race.distance,s.race.goal*(1-s.amplitude/100))} /km`));
   const elapsed=textElement('strong','');elapsed.id='rm-elapsed';display.append(textElement('p','参考经过时间（不含暂停）'),elapsed);
   display.append(textElement('p',`${s.progress} km · 已完成 ${(s.progress/s.race.distance*100).toFixed(1)}%`,'rm-progress-value'),textElement('p',`目标累计 ${clockTime(rmTargetTime(s.progress))} · 剩余 ${Number((s.race.distance-s.progress).toFixed(4))} km`));
   const bar=document.createElement('progress');bar.max=s.race.distance;bar.value=s.progress;bar.setAttribute('aria-label','已完成比例');display.append(bar);
@@ -54,7 +60,7 @@ function renderRaceMode() {
   [...s.supplies].sort((a,b)=>a.distance-b.distance).forEach(x=>{const row=textElement('div','', 'race-card');row.append(textElement('p',`${x.distance} km · ${x.type} ${x.note}${x.distance<s.progress?' · 已经过':''}`));const remove=textElement('button','移除提醒');remove.disabled=!active;remove.onclick=()=>saveSession({...s,supplies:s.supplies.filter(y=>y.id!==x.id)});row.append(remove);$('rm-supplies').append(row);});
   const points=[];for(let km=5;km<s.race.distance;km+=5)points.push(km);points.push(s.race.distance/2,s.race.distance);
   const table=document.createElement('table');table.className='splits';const head=document.createElement('thead'),tr=document.createElement('tr');tr.append(textElement('th','公里 / 分段'),textElement('th','目标累计用时'));head.append(tr);table.append(head);const body=document.createElement('tbody');
-  [...new Set(points)].sort((a,b)=>a-b).forEach(km=>{const row=document.createElement('tr');row.append(textElement('td',`${km} km${km===s.race.distance?' · 终点':km===s.race.distance/2?' · 半程':''}`),textElement('td',clockTime(rmTargetTime(km))));body.append(row);});table.append(body);$('rm-splits').append(table);rmTimerDisplay();
+  [...new Set(points)].sort((a,b)=>a-b).forEach(km=>{const row=document.createElement('tr');row.append(textElement('td',`${km} km${km===s.race.distance?' · 终点':km===s.race.distance/2?' · 半程':''}`),textElement('td',clockTime(rmTargetTime(km))));body.append(row);});table.append(body);$('rm-splits').append(table);rmTimerDisplay();document.dispatchEvent(new Event('race-mode-updated'));
 }
 $('rm-race').onchange=rmRaceInfo;
 $('rm-start').onclick=()=>{
@@ -63,11 +69,13 @@ $('rm-start').onclick=()=>{
   if (!race || !STANDARD_DISTANCES.includes(race.distance) || !validTime(race.goal)) { $('rm-error').textContent='请选择支持的比赛，并先在比赛管理中设置有效目标成绩。';return; }
   if ($('rm-amplitude').value==='' || !Number.isFinite(a) || a<0 || a>20) { $('rm-error').textContent='负分段幅度须为 0–20%。';return; }
   if (raceSession && !confirm('重新开始将替换上一次比赛模式状态；原比赛和跑步记录不会改变。继续？'))return;
-  saveSession({race:{...race},status:'running',strategy:$('rm-strategy').value,amplitude:a,progress:0,elapsedMs:0,startedAt:Date.now(),supplies:[]});
+  let courseExtras={};
+  if($('rm-strategy').value==='grade'){try{courseExtras=prepareCourseSession(race);}catch(error){$('rm-error').textContent=error.message;return;}}
+  saveSession({race:{...race},status:'running',strategy:$('rm-strategy').value,amplitude:a,progress:0,elapsedMs:0,startedAt:Date.now(),supplies:[],...courseExtras});
 };
 $('rm-pause').onclick=()=>{if(raceSession?.status==='running')saveSession({...raceSession,status:'paused',elapsedMs:rmElapsed(),startedAt:null});};
 $('rm-end').onclick=()=>{if(raceSession && raceSession.status!=='ended' && confirm('确定结束比赛模式？当前进度会保留，训练和比赛数据不会删除。'))saveSession({...raceSession,status:'ended',elapsedMs:rmElapsed(),startedAt:null});};
-$('rm-progress-form').onsubmit=e=>{e.preventDefault();const km=Number($('rm-progress').value);if(!raceSession || raceSession.status==='ended')return;if($('rm-progress').value===''||!Number.isFinite(km)||km<0||km>raceSession.race.distance){$('rm-error').textContent='进度须在 0 到终点距离之间。';return;}saveSession({...raceSession,progress:km});};
+$('rm-progress-form').onsubmit=e=>{e.preventDefault();const km=Number($('rm-progress').value);if(!raceSession || raceSession.status==='ended')return;if($('rm-progress').value===''||!Number.isFinite(km)||km<0||km>raceSession.race.distance){$('rm-error').textContent='进度须在 0 到终点距离之间。';return;}saveSession({...raceSession,progress:km,actualSeconds:undefined});};
 $('rm-supply-form').onsubmit=e=>{e.preventDefault();if(!raceSession || raceSession.status==='ended')return;const km=Number($('rm-supply-distance').value),note=$('rm-supply-note').value.trim();if(!Number.isFinite(km)||km<=0||km>raceSession.race.distance||note.length>80){$('rm-error').textContent='请填写终点以内的有效补给距离。';return;}if(saveSession({...raceSession,supplies:[...raceSession.supplies,{id:`${Date.now()}-${Math.random().toString(36).slice(2)}`,type:$('rm-supply-type').value,distance:km,note}]})){$('rm-supply-form').reset();}};
 $('rm-big').onclick=()=>{const big=$('race-mode').classList.toggle('rm-big');$('rm-big').setAttribute('aria-pressed',String(big));$('rm-big').textContent=big?'退出大字显示':'大字显示';};
 document.addEventListener('races-updated',rmRaceOptions);

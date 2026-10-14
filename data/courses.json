@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "checkedAt": "2026-10-14",
+  "courses": [],
+  "unavailable": [{
+    "name": "2026 雅典经典马拉松",
+    "year": 2026,
+    "distance": 42.195,
+    "aliases": ["雅典经典马拉松", "雅典马拉松", "Athens Authentic Marathon", "Athens Classic Marathon"],
+    "eventWebsite": "https://www.athensauthenticmarathon.gr/",
+    "reason": "尚未取得并核实 2026 官方路线文件。赛事官网链接不是路线数据来源证明。"
+  }]
+}
