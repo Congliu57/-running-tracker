@@ -23,6 +23,12 @@ const URL=(process.env.TEST_URL || 'http://127.0.0.1:8001/-running-tracker/');
  page.once('dialog',d=>d.accept());await page.locator('.race-card').filter({hasText:'新版比赛'}).locator('.delete').click();assert.equal(await page.locator('.race-card').count(),2);
  assert.equal(await page.locator('#reference-time').getAttribute('inputmode'),'text');
  await page.fill('#reference-time','01:45:30');await page.locator('#prediction-form button').click();assert.equal(await page.evaluate(()=>reference.duration),6330);
+ await page.selectOption('#reference-mode','parts');assert.equal(await page.inputValue('#reference-hours'),'1');assert.equal(await page.inputValue('#reference-minutes'),'45');assert.equal(await page.inputValue('#reference-seconds'),'30');
+ await page.fill('#reference-hours','3');await page.fill('#reference-minutes','20');await page.fill('#reference-seconds','15');await page.locator('#prediction-form button').click();assert.equal(await page.evaluate(()=>reference.duration),12015);
+ for(const bad of ['60','-1','1.5']) {await page.fill('#reference-minutes',bad);assert.equal(await page.locator('#reference-minutes').evaluate(el=>el.checkValidity()),false);}
+ await page.fill('#reference-minutes','20');await page.fill('#reference-seconds','60');assert.equal(await page.locator('#reference-seconds').evaluate(el=>el.checkValidity()),false);await page.fill('#reference-seconds','15');
+ await page.selectOption('#reference-mode','text');assert.equal(await page.inputValue('#reference-time'),'03:20:15');await page.fill('#reference-time','01:45:30');await page.locator('#prediction-form button').click();
+
  for (const bad of ['01:60:00','01:00:60','01:5:30','00:00:00','abc']) {await page.fill('#reference-time',bad);assert.equal(await page.locator('#reference-time').evaluate(el=>el.checkValidity()),false);assert.equal(await page.evaluate(()=>reference.duration),6330);}
  await page.fill('#reference-time','00:25:00');await page.fill('#prediction-distance','10');await page.locator('#prediction-form button').click();
  const expected=Math.round(1500*Math.pow(2,1.06));assert.equal(await page.evaluate(()=>Math.round(predictionFor(10))),expected);assert.match(await page.locator('#prediction-result').innerText(),/00:52:07/);assert.match(await page.locator('#next-race').innerText(),/自己设定的目标成绩：04:00:00/);assert.match(await page.locator('#next-race').innerText(),/公式预测参考/);

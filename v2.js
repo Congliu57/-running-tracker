@@ -111,22 +111,49 @@ function renderPrediction() {
   const predicted = predictionFor(d);
   result.append(textElement('div', `公式预测 ${d} km：${clockTime(predicted)} · ${pace(d, predicted)} /km。参考成绩：${reference.distance} km / ${clockTime(reference.duration)}。这不是你设定的目标成绩。`, 'result-box'));
 }
+const referenceParts = ['reference-hours', 'reference-minutes', 'reference-seconds'];
+function referenceInputSeconds() {
+  if ($('reference-mode').value === 'text') {
+    const value = $('reference-time').value.trim();
+    return /^\d{2,3}:[0-5]\d:[0-5]\d$/.test(value) ? timeSeconds(value) : null;
+  }
+  return referenceInputParts();
+}
 function validateReferenceInput() {
-  const input = $('reference-time');
-  const value = input.value.trim();
-  const valid = /^\d{2,3}:[0-5]\d:[0-5]\d$/.test(value) && validTime(timeSeconds(value));
-  const message = value && !valid ? '请输入 HH:MM:SS 格式，例如 01:45:30；分钟和秒须为 00–59，成绩须大于 0。' : '';
-  input.setCustomValidity(message);
-  input.setAttribute('aria-invalid', message ? 'true' : 'false');
+  const valid = validTime(referenceInputSeconds());
+  const message = valid ? '' : '请输入有效的 HH:MM:SS 格式或分段时间；分钟和秒须为 00–59，成绩须大于 0。';
+  const active = $('reference-mode').value === 'text' ? ['reference-time'] : referenceParts;
+  active.forEach(id => { $(id).setCustomValidity(message); $(id).setAttribute('aria-invalid', valid ? 'false' : 'true'); });
   if (referenceReadable) $('prediction-error').textContent = message;
   return valid;
 }
-$('reference-time').addEventListener('input', validateReferenceInput);
-$('reference-time').addEventListener('blur', validateReferenceInput);
+['reference-time', ...referenceParts].forEach(id => {
+  $(id).addEventListener('input', validateReferenceInput);
+  $(id).addEventListener('blur', validateReferenceInput);
+});
+$('reference-mode').addEventListener('change', () => {
+  const parts = $('reference-mode').value === 'parts';
+  const seconds = parts ? timeSeconds($('reference-time').value) : referenceInputParts();
+  if (validTime(seconds)) {
+    if (parts) { $('reference-hours').value = Math.floor(seconds / 3600); $('reference-minutes').value = Math.floor(seconds % 3600 / 60); $('reference-seconds').value = seconds % 60; }
+    else $('reference-time').value = clockTime(seconds);
+  }
+  $('reference-text-group').hidden = parts;
+  $('reference-parts-group').hidden = !parts;
+  $('reference-time').disabled = parts; $('reference-time').required = !parts; $('reference-time').setCustomValidity('');
+  referenceParts.forEach(id => { $(id).disabled = !parts; $(id).required = parts; $(id).setCustomValidity(''); });
+  validateReferenceInput();
+});
+function referenceInputParts() {
+  const values = referenceParts.map(id => $(id).value);
+  if (!values.every(v => /^\d+$/.test(v))) return null;
+  const [h, m, s] = values.map(Number);
+  return h <= 999 && m <= 59 && s <= 59 ? h * 3600 + m * 60 + s : null;
+}
 $('prediction-form').addEventListener('submit', event => {
   event.preventDefault();
   if (!validateReferenceInput()) return;
-  const next = { distance: Number($('reference-distance').value), duration: timeSeconds($('reference-time').value) };
+  const next = { distance: Number($('reference-distance').value), duration: referenceInputSeconds() };
   if (!validReference(next) || !validDistance(Number($('prediction-distance').value))) { $('prediction-error').textContent = '请填写有效距离和大于 0 的成绩，格式为 时:分:秒。'; return; }
   if (!referenceReadable) return;
   try { localStorage.setItem(REFERENCE_KEY, JSON.stringify(next)); reference = next; $('prediction-error').textContent = ''; renderPrediction(); renderRaces(); }
